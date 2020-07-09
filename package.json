@@ -11,7 +11,8 @@
     "build": "tsc",
     "test": "jest",
     "clean": "rm -f dist/*",
-    "run": "NODE_ENV=production node dist/index.js"
+    "run": "NODE_ENV=production node dist/index.js",
+    "dev": "nodemon ts/index.ts"
   },
   "jest": {
     "transform": {
@@ -30,12 +31,14 @@
   "dependencies": {
     "@types/compression": "^0.0.36",
     "@types/node": "^10.0.0",
+    "axios": "^0.19.2",
     "body-parser": "^1.18.3",
     "compression": "^1.7.3",
     "cors": "^2.8.4",
     "express": "^4.16.3",
     "http-post": "^0.1.1",
     "jest": "^23.6.0",
+    "nodemon": "^2.0.4",
     "roslib": "^1.0.1",
     "rosnodejs": "^3.0.0",
     "ts-jest": "^23.1.4",

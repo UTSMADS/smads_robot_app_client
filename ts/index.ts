@@ -123,6 +123,7 @@ function robotLogin() {
       res.on('data', function (chunk) {
         const response = JSON.parse(chunk);
         token = response.token;
+        console.log(`Logged in. Authorization token: ${token}`)
       });
       res.on('end', () => {
         console.log("no more data");
@@ -148,7 +149,7 @@ function main(rosNode: any) {
     "sensor_msgs/NavSatFix",
     rosTopicCallback,
     {queueSize: 1, throttleMs: 1000});
-  rosPublisher = rosNode.advertise('/smads_waypoint/goal', 'geometry_msgs/Pose2D');
+  rosPublisher = rosNode.advertise('/smads_waypoint/gps_goal', 'geometry_msgs/Pose2D');
   console.log(`Publisher: ${rosPublisher}`);
   // Subscribe to jackal status topic
   let status_subscriber = rosNode.subscribe(
