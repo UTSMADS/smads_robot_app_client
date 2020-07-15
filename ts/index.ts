@@ -2,7 +2,8 @@ import * as http from 'http'
 import { Request, Response } from 'express';
 import * as compression from 'compression'
 import * as express from 'express';
-import * as bodyParser from 'body-parser'
+import * as bodyParser from 'body-parser';
+
 
 const rosnodejs = require('rosnodejs');
 console.log("Loading packages...");
@@ -14,6 +15,8 @@ let rosPublisher = undefined as undefined | any;
 let token: String = ''; 
 let jackalHardwareId: String = '';
 let loggedIn: Boolean = false;
+let intervalId : NodeJS.Timeout;
+let activeTrip = false;
 
 // maintain global current status
 let currentStatus = {
@@ -142,6 +145,47 @@ function robotLogin() {
   }
 }
 
+function getTrip() {
+  const get_options = {
+    host: "ut-smads.herokuapp.com",
+    port: '80',
+    path: '/spots/0/activeTrip',
+    headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+    }
+  }
+  http.get(get_options, (res) => {
+    res.setEncoding('utf8');
+    let rawData = '';
+    res.on('data', (chunk) => { rawData += chunk; });
+    res.on('end', () => {
+      try {
+        const parsedData = JSON.parse(rawData);
+        console.log(parsedData);
+        if (parsedData.id !== null) {
+          let x = rosPublisher as any;
+          // publish 2D pose msg to ROS
+          if (x !== undefined) {
+            console.log(`Publishing ${x}`);
+            x.publish({
+              x: parseFloat(parsedData.dropoffLocation.latitude),
+              y: parseFloat(parsedData.dropoffLocation.longitude),
+              theta: 0.0
+            });
+            clearInterval(intervalId);
+          }
+          activeTrip = true;
+        } 
+      } catch (e) {
+        console.error(e.message);
+      }
+    });
+  }).on('error', (e) => {
+    console.error(`Got error: ${e.message}`);
+  });
+}
+
 function main(rosNode: any) {
   // Subscribe to robot's GPS localization topic
   let localization_subscriber = rosNode.subscribe(
@@ -156,14 +200,18 @@ function main(rosNode: any) {
     "/status",
     "jackal_msgs/Status",
     rosTopicCallback,
-    {queueSize: 1, throttleMs: 1000});
+    {queueSize: 1, throttleMs: 1500});
   if (!loggedIn) {
     robotLogin();
   }
   // regularly send updates to app backend
   setInterval(() => {
     sendUpdate();
-  }, 1000)
+  }, 1000);
+  // poll to get a trip if it 
+  // = setInterval(() => {
+  //  getTrip();
+  //}, 1000)
 }
 
 rosnodejs.initNode('/smads_app_client',{ onTheFly: false }).then(main);
