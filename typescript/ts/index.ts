@@ -209,9 +209,9 @@ function main(rosNode: any) {
     sendUpdate();
   }, 1000);
   // poll to get a trip if it 
-  // = setInterval(() => {
+  // intervalId = setInterval(() => {
   //  getTrip();
-  //}, 1000)
+  // }, 1000)
 }
 
 rosnodejs.initNode('/smads_app_client',{ onTheFly: false }).then(main);
