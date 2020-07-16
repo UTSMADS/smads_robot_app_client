@@ -28,33 +28,22 @@ let currentStatus = {
 const appUrl = "http://ut-smads.herokuapp.com";
 
 const sendRobotStatus = async () => {
-  const updateString = JSON.stringify(currentStatus);
   console.log(currentStatus);
-  // An object of options to indicate where to put to
-  var put_options = {
-    host: "ut-smads.herokuapp.com",
-    port: "80",
-    path: "/spots/0/statusUpdate",
-    method: "PUT",
+  const config = {
     headers: {
       "Content-Type": "application/json",
-      "Content-Length": Buffer.byteLength(updateString),
-      Authorization: `Bearer ${token}`,
+      "Authorization": `Bearer ${token}`,
     },
   };
   try {
-    // Set up the request
-    var put_req = http.request(put_options, function (res) {
-      res.setEncoding("utf8");
-    });
-    put_req.on("error", function (e) {
-      console.error("HTTP " + e);
-    });
-    // put the data
-    put_req.write(updateString);
-    put_req.end();
+    const res = await axios.put(
+      `${appUrl}/spots/0/statusUpdate`,
+      currentStatus,
+      config
+    );
+    console.log("Status sent");
   } catch (e) {
-    console.error("Error sending server update: " + e);
+    console.error(`Error sending server update ${e}`);
   }
 };
 
@@ -95,6 +84,7 @@ const receiveAppRequest = async (req, res) => {
     }
     // update status of spot when a trip is received
     currentStatus.spotStatus = req.body.tripStatus;
+    activeTrip = true;
     res.status(200).send(JSON.stringify(response));
   } catch (e) {
     console.log(e.toString);
@@ -122,44 +112,76 @@ const robotLogin = async () => {
 };
 
 const getTripFromApp = async () => {
-  const get_options = {
-    host: "ut-smads.herokuapp.com",
-    port: '80',
-    path: '/spots/0/activeTrip',
+  const config = {
     headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
     }
   }
-  http.get(get_options, (res) => {
-    res.setEncoding('utf8');
-    let rawData = '';
-    res.on('data', (chunk) => { rawData += chunk; });
-    res.on('end', () => {
-      try {
-        const parsedData = JSON.parse(rawData);
-        console.log(parsedData);
-        if (parsedData.id !== null) {
-          let x = rosPublisher;
-          // publish 2D pose msg to ROS
-          if (x !== undefined) {
-            console.log(`Publishing ${x}`);
-            x.publish({
-              x: parseFloat(parsedData.dropoffLocation.latitude),
-              y: parseFloat(parsedData.dropoffLocation.longitude),
-              theta: 0.0
-            });
-            clearInterval(intervalId);
-          }
-          activeTrip = true;
-        } 
-      } catch (e) {
-        console.error(e.message);
+
+  try {
+    const res = await axios.get(`${appUrl}/spots/0/activeTrip`, config);
+    console.log(res.data);
+    if (res.data.id !== null) {
+      let x = rosPublisher;
+      // publish 2D pose msg to ROS
+      if (x !== undefined) {
+        console.log(`Publishing ${x}`);
+        x.publish({
+          x: parseFloat(res.data.dropoffLocation.latitude),
+          y: parseFloat(res.data.dropoffLocation.longitude),
+          theta: 0.0,
+        });
+        clearInterval(intervalId);
       }
-    });
-  }).on('error', (e) => {
-    console.error(`Got error: ${e.message}`);
-  });
+      activeTrip = true;
+    }
+  } catch (e) {
+    console.error(e.message);
+  }  
+
+  // const get_options = {
+  //   host: "ut-smads.herokuapp.com",
+  //   port: "80",
+  //   path: "/spots/0/activeTrip",
+  //   headers: {
+  //     "Content-Type": "application/json",
+  //     Authorization: `Bearer ${token}`,
+  //   },
+  // };
+  // http
+  //   .get(get_options, (res) => {
+  //     res.setEncoding("utf8");
+  //     let rawData = "";
+  //     res.on("data", (chunk) => {
+  //       rawData += chunk;
+  //     });
+  //     res.on("end", () => {
+  //       try {
+  //         const parsedData = JSON.parse(rawData);
+  //         console.log(parsedData);
+  //         if (parsedData.id !== null) {
+  //           let x = rosPublisher;
+  //           // publish 2D pose msg to ROS
+  //           if (x !== undefined) {
+  //             console.log(`Publishing ${x}`);
+  //             x.publish({
+  //               x: parseFloat(parsedData.dropoffLocation.latitude),
+  //               y: parseFloat(parsedData.dropoffLocation.longitude),
+  //               theta: 0.0,
+  //             });
+  //             clearInterval(intervalId);
+  //           }
+  //           activeTrip = true;
+  //         }
+  //       } catch (e) {
+  //         console.error(e.message);
+  //       }
+  //     });
+  //   })
+  //   .on("error", (e) => {
+  //     console.error(`Got error: ${e.message}`);
+  //   });
 };
 
 const main = (rosNode) => {
@@ -188,7 +210,7 @@ const main = (rosNode) => {
   // regularly send updates to app backend
   setInterval(() => {
     sendRobotStatus();
-  }, 1000);
+  }, activeTrip ? 10000 : 1000);
   // poll to get a trip if it
   intervalId = setInterval(() => {
     getTripFromApp();
