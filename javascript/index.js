@@ -16,6 +16,8 @@ let jackalHardwareId = "";
 let loggedIn = false;
 let intervalId = 0;
 let activeTrip = false;
+let preTrip = 0;
+let postTrip = 0;
 
 // maintain global current status
 let currentStatus = {
@@ -28,11 +30,10 @@ let currentStatus = {
 const appUrl = "http://ut-smads.herokuapp.com";
 
 const sendRobotStatus = async () => {
-  console.log(currentStatus);
   const config = {
     headers: {
       "Content-Type": "application/json",
-      "Authorization": `Bearer ${token}`,
+      Authorization: `Bearer ${token}`,
     },
   };
   try {
@@ -41,6 +42,7 @@ const sendRobotStatus = async () => {
       currentStatus,
       config
     );
+    console.log(currentStatus);
     console.log("Status sent");
   } catch (e) {
     console.error(`Error sending server update ${e}`);
@@ -95,7 +97,7 @@ const receiveAppRequest = async (req, res) => {
 const robotLogin = async () => {
   // login credentials
   const login = {
-    emailAddress: "0.3.9",
+    username: "0",
     password: "smads_jackal",
     name: "jackal",
   };
@@ -116,8 +118,8 @@ const getTripFromApp = async () => {
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
-    }
-  }
+    },
+  };
 
   try {
     const res = await axios.get(`${appUrl}/spots/0/activeTrip`, config);
@@ -135,10 +137,11 @@ const getTripFromApp = async () => {
         clearInterval(intervalId);
       }
       activeTrip = true;
+      clearInterval(preTrip);
     }
   } catch (e) {
     console.error(e.message);
-  }  
+  }
 
   // const get_options = {
   //   host: "ut-smads.herokuapp.com",
@@ -186,7 +189,7 @@ const getTripFromApp = async () => {
 
 const main = (rosNode) => {
   // Subscribe to robot's GPS localization topic
-  const localization_subscriber = rosNode.subscribe(
+  const localizationSubscriber = rosNode.subscribe(
     "/gps/fix",
     "sensor_msgs/NavSatFix",
     rosMessageHandler,
@@ -198,23 +201,21 @@ const main = (rosNode) => {
   );
   console.log(`Publisher: ${rosPublisher}`);
   // Subscribe to jackal status topic
-  const status_subscriber = rosNode.subscribe(
+  const statusSubscriber = rosNode.subscribe(
     "/status",
     "jackal_msgs/Status",
     rosMessageHandler,
     { queueSize: 1, throttleMs: 1000 }
   );
+  // const pathSubscriber = rosNode.subscribe();
   if (!loggedIn) {
     robotLogin();
   }
   // regularly send updates to app backend
-  setInterval(() => {
-    sendRobotStatus();
-  }, activeTrip ? 10000 : 1000);
+  preTrip = setInterval(sendRobotStatus, 1000);
+  postTrip = setInterval(sendRobotStatus, 10000);
   // poll to get a trip if it
-  intervalId = setInterval(() => {
-    getTripFromApp();
-  }, 1000);
+  intervalId = setInterval(getTripFromApp, 1000);
 };
 
 rosnodejs.initNode("/smads_app_client", { onTheFly: false }).then(main);
