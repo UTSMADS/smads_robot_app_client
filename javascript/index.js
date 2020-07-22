@@ -1,4 +1,5 @@
 const http = require("http");
+const https = require('https');
 const express = require("express");
 const compression = require("compression");
 const bodyParser = require("body-parser");
@@ -26,9 +27,11 @@ let currentStatus = {
   spotStatus: "available",
   chargeLevel: 0,
 };
-
-const appUrl = "http://54.165.60.65";
-// const appUrl = "10.0.0.31:8085";
+// const instance= axios.create({baseURL: 'http://ut-smads.herokuapp.com'}); 
+const instance= axios.create({baseURL: 'https://hypnotoad.csres.utexas.edu:8085', httpsAgent: new https.Agent({  
+    rejectUnauthorized: false
+  })}); 
+// const instance= axios.create({baseURL: '10.0.0.31:8085'}); 
 
 const sendRobotStatus = async () => {
   const config = {
@@ -38,8 +41,8 @@ const sendRobotStatus = async () => {
     },
   };
   try {
-    const res = await axios.put(
-      `${appUrl}/spots/0/statusUpdate`,
+    const res = await instance.put(
+      `/spots/0/statusUpdate`,
       currentStatus,
       config
     );
@@ -95,62 +98,20 @@ const receiveAppRequest = async (req, res) => {
 
 const robotLogin = async () => {
   // login credentials
-  // const login = {
-  //   username: "0",
-  //   password: "smads_jackal",
-  //   name: "jackal",
-  // };
-
-  // try {
-  //   console.log("logging in");
-  //   const res = await axios.post(`${appUrl}/auth/login`, login);
-  //   token = res.data.token;
-  //   console.log(`Logged in. Authorization token: ${token}`);
-  //   loggedIn = true;
-  // } catch (e) {
-  //   console.error(`Error sending server update: ${e}`);
-  // }
-
-  // login credentials
   const login = {
-    emailAddress: "0",
+    username: "0",
     password: "smads_jackal",
     name: "jackal",
   };
 
-  const loginString = JSON.stringify(login);
-  var post_options = {
-    host: "10.0.0.31",
-    port: "8085",
-    path: "/auth/login",
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-  };
   try {
-    // Set up the request
-    var post_req = http.request(post_options, function (res) {
-      res.setEncoding("utf8");
-      res.on("data", function (chunk) {
-        const response = JSON.parse(chunk);
-        token = response.token;
-        console.log(`Logged in. Authorization token: ${token}`);
-      });
-      res.on("end", () => {
-        console.log("no more data");
-      });
-    });
-    post_req.on("error", function (e) {
-      console.error("HTTP " + e);
-    });
-    // post the data
-    post_req.write(loginString);
-    post_req.end();
-    console.log("success");
+    console.log("logging in");
+    const res = await instance.post(`/auth/login`, login);
+    token = res.data.token;
+    console.log(`Logged in. Authorization token: ${token}`);
     loggedIn = true;
   } catch (e) {
-    console.error("Error sending server update: " + e);
+    console.error(`Error sending server update: ${e}`);
   }
 };
 
@@ -163,7 +124,7 @@ const getTripFromApp = async () => {
   };
 
   try {
-    const res = await axios.get(`${appUrl}/spots/0/activeTrip`, config);
+    const res = await instance.get(`/spots/0/activeTrip`, config);
     console.log(res.data);
     if (res.data.id !== null) {
       let x = rosPublisher;
