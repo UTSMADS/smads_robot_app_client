@@ -28,6 +28,7 @@ let currentStatus = {
 };
 
 const appUrl = "http://ut-smads.herokuapp.com";
+// const appUrl = "10.0.0.31:8085";
 
 const sendRobotStatus = async () => {
   const config = {
@@ -55,11 +56,9 @@ const rosMessageHandler = (msg) => {
   if (msg.hardware_id !== undefined) {
     jackalHardwareId = msg.hardware_id;
   }
-  if (msg.latitude) {
-    currentStatus.latitude = msg.latitude;
-  }
-  if (msg.longitude) {
-    currentStatus.longitude = msg.longitude;
+  if (msg.point) {
+    currentStatus.latitude = msg.point.x;
+    currentStatus.longitude = msg.point.y;
   }
   if (msg.measured_battery) {
     currentStatus.chargeLevel = Math.floor(msg.measured_battery);
@@ -142,61 +141,18 @@ const getTripFromApp = async () => {
   } catch (e) {
     console.error(e.message);
   }
-
-  // const get_options = {
-  //   host: "ut-smads.herokuapp.com",
-  //   port: "80",
-  //   path: "/spots/0/activeTrip",
-  //   headers: {
-  //     "Content-Type": "application/json",
-  //     Authorization: `Bearer ${token}`,
-  //   },
-  // };
-  // http
-  //   .get(get_options, (res) => {
-  //     res.setEncoding("utf8");
-  //     let rawData = "";
-  //     res.on("data", (chunk) => {
-  //       rawData += chunk;
-  //     });
-  //     res.on("end", () => {
-  //       try {
-  //         const parsedData = JSON.parse(rawData);
-  //         console.log(parsedData);
-  //         if (parsedData.id !== null) {
-  //           let x = rosPublisher;
-  //           // publish 2D pose msg to ROS
-  //           if (x !== undefined) {
-  //             console.log(`Publishing ${x}`);
-  //             x.publish({
-  //               x: parseFloat(parsedData.dropoffLocation.latitude),
-  //               y: parseFloat(parsedData.dropoffLocation.longitude),
-  //               theta: 0.0,
-  //             });
-  //             clearInterval(intervalId);
-  //           }
-  //           activeTrip = true;
-  //         }
-  //       } catch (e) {
-  //         console.error(e.message);
-  //       }
-  //     });
-  //   })
-  //   .on("error", (e) => {
-  //     console.error(`Got error: ${e.message}`);
-  //   });
 };
 
 const main = (rosNode) => {
   // Subscribe to robot's GPS localization topic
   const localizationSubscriber = rosNode.subscribe(
-    "/gps/fix",
-    "sensor_msgs/NavSatFix",
+    "/smads/localization/out/gps",
+    "geometry_msgs/PointStamped",
     rosMessageHandler,
     { queueSize: 1, throttleMs: 1000 }
   );
   rosPublisher = rosNode.advertise(
-    "/smads_waypoint/goal",
+    "/smads/navigation/in/cmd",
     "geometry_msgs/Pose2D"
   );
   console.log(`Publisher: ${rosPublisher}`);
