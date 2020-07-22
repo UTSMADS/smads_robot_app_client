@@ -27,7 +27,7 @@ let currentStatus = {
   chargeLevel: 0,
 };
 
-const appUrl = "http://ut-smads.herokuapp.com";
+const appUrl = "http://54.165.60.65";
 // const appUrl = "10.0.0.31:8085";
 
 const sendRobotStatus = async () => {
@@ -95,20 +95,62 @@ const receiveAppRequest = async (req, res) => {
 
 const robotLogin = async () => {
   // login credentials
+  // const login = {
+  //   username: "0",
+  //   password: "smads_jackal",
+  //   name: "jackal",
+  // };
+
+  // try {
+  //   console.log("logging in");
+  //   const res = await axios.post(`${appUrl}/auth/login`, login);
+  //   token = res.data.token;
+  //   console.log(`Logged in. Authorization token: ${token}`);
+  //   loggedIn = true;
+  // } catch (e) {
+  //   console.error(`Error sending server update: ${e}`);
+  // }
+
+  // login credentials
   const login = {
-    username: "0",
+    emailAddress: "0",
     password: "smads_jackal",
     name: "jackal",
   };
 
+  const loginString = JSON.stringify(login);
+  var post_options = {
+    host: "10.0.0.31",
+    port: "8085",
+    path: "/auth/login",
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+  };
   try {
-    console.log("logging in");
-    const res = await axios.post(`${appUrl}/auth/login`, login);
-    token = res.data.token;
-    console.log(`Logged in. Authorization token: ${token}`);
+    // Set up the request
+    var post_req = http.request(post_options, function (res) {
+      res.setEncoding("utf8");
+      res.on("data", function (chunk) {
+        const response = JSON.parse(chunk);
+        token = response.token;
+        console.log(`Logged in. Authorization token: ${token}`);
+      });
+      res.on("end", () => {
+        console.log("no more data");
+      });
+    });
+    post_req.on("error", function (e) {
+      console.error("HTTP " + e);
+    });
+    // post the data
+    post_req.write(loginString);
+    post_req.end();
+    console.log("success");
     loggedIn = true;
   } catch (e) {
-    console.error(`Error sending server update: ${e}`);
+    console.error("Error sending server update: " + e);
   }
 };
 
