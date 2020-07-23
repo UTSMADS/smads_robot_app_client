@@ -1,5 +1,5 @@
 const http = require("http");
-const https = require('https');
+const https = require("https");
 const express = require("express");
 const compression = require("compression");
 const bodyParser = require("body-parser");
@@ -24,14 +24,21 @@ let postTrip = 0;
 let currentStatus = {
   latitude: 0.0,
   longitude: 0.0,
-  spotStatus: "available",
+  spotStatus: "enroute",
   chargeLevel: 0,
 };
-// const instance= axios.create({baseURL: 'http://ut-smads.herokuapp.com'}); 
-const instance= axios.create({baseURL: 'https://hypnotoad.csres.utexas.edu:8085', httpsAgent: new https.Agent({  
-    rejectUnauthorized: false
-  })}); 
-// const instance= axios.create({baseURL: '10.0.0.31:8085'}); 
+
+// maintain current navigation path
+let navPath = [];
+
+// const instance= axios.create({baseURL: 'http://ut-smads.herokuapp.com'});
+const instance = axios.create({
+  baseURL: "https://hypnotoad.csres.utexas.edu:8085",
+  httpsAgent: new https.Agent({
+    rejectUnauthorized: false,
+  }),
+});
+// const instance= axios.create({baseURL: '10.0.0.31:8085'});
 
 const sendRobotStatus = async () => {
   const config = {
@@ -68,19 +75,33 @@ const rosMessageHandler = (msg) => {
   }
 };
 
+const pathMsgHandler = (msg) => {
+  console.log("Received path from navigation.");
+  //console.log(msg.poses[0].pose.position);
+  const poses = msg.poses;
+  if (msg.poses) {
+    msg.poses.map((pose) => {
+      navPath = navPath.concat({
+        latitude: pose.pose.position.x,
+        longitude: pose.pose.position.y,
+      });
+    });
+  }
+  console.log(navPath);
+};
+
 const receiveAppRequest = async (req, res) => {
   try {
     console.log("Received command from app backend:");
     console.log(req.body);
     const response = {
-      time: new Date(),
-      response: "Ok",
+      waypoints: navPath,
     };
-    let x = rosPublisher;
+    let publisher = rosPublisher;
     // publish 2D pose msg to ROS
-    if (x !== undefined) {
+    if (publisher !== undefined) {
       console.log(`Publishing ${x}`);
-      x.publish({
+      publisher.publish({
         x: parseFloat(req.body.dropoffLocation.latitude),
         y: parseFloat(req.body.dropoffLocation.longitude),
         theta: 0.0,
@@ -93,6 +114,28 @@ const receiveAppRequest = async (req, res) => {
   } catch (e) {
     console.log(e.toString);
     res.status(500).send("Exception: " + e.toString);
+  }
+};
+
+const cancelTrip = async (req, res) => {
+  try {
+    console.log("Cancelling trip.");
+    
+    let publisher = rosPublisher;
+    if (publisher !== undefined) {
+      publisher.publish({
+        x: currentStatus.longitude,
+        y: currentStatus.longitude,
+      });
+    } else {
+      res.status(200).send(JSON.stringify({cancelled: false}));
+    }
+    currentStatus.spotStatus = "available";
+    activeTrip = false;
+    res.status(200).send(JSON.stringify({cancelled: true}));
+  } catch (e) {
+    console.log(e);
+    res.status(500).send(`Exception: ${e}`);
   }
 };
 
@@ -139,7 +182,7 @@ const getTripFromApp = async () => {
         clearInterval(intervalId);
       }
       activeTrip = true;
-      clearInterval(preTrip);
+      //clearInterval(preTrip);
     }
   } catch (e) {
     console.error(e.message);
@@ -166,13 +209,18 @@ const main = (rosNode) => {
     rosMessageHandler,
     { queueSize: 1, throttleMs: 1000 }
   );
-  // const pathSubscriber = rosNode.subscribe();
+  const pathSubscriber = rosNode.subscribe(
+    "/smads/navigation/out/planned_path",
+    "nav_msgs/Path",
+    pathMsgHandler,
+    { queueSize: 1, throttleMs: 1000 }
+  );
   if (!loggedIn) {
     robotLogin();
   }
   // regularly send updates to app backend
   preTrip = setInterval(sendRobotStatus, 1000);
-  postTrip = setInterval(sendRobotStatus, 10000);
+  //postTrip = setInterval(sendRobotStatus, 10000);
   // poll to get a trip if it
   intervalId = setInterval(getTripFromApp, 1000);
 };
@@ -192,7 +240,10 @@ robotAppClient.use((req, res, next) => {
 
 robotAppClient.use(bodyParser.json({ limit: "10mb" }));
 robotAppClient.use(compression());
+
 robotAppClient.post("/newTrip", receiveAppRequest);
+robotAppClient.post("/cancelledTrip", cancelTrip);
+
 robotAppClient.listen(9143, () =>
   console.log("SMADS App client listening on port 9143")
 );
