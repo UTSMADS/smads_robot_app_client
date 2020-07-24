@@ -24,7 +24,7 @@ let postTrip = 0;
 let currentStatus = {
   latitude: 0.0,
   longitude: 0.0,
-  spotStatus: "enroute",
+  spotStatus: "available",
   chargeLevel: 0,
 };
 
@@ -33,10 +33,7 @@ let navPath = [];
 
 // const instance= axios.create({baseURL: 'http://ut-smads.herokuapp.com'});
 const instance = axios.create({
-  baseURL: "https://hypnotoad.csres.utexas.edu:8085",
-  httpsAgent: new https.Agent({
-    rejectUnauthorized: false,
-  }),
+  baseURL: "http://hypnotoad.csres.utexas.edu:8085",
 });
 // const instance= axios.create({baseURL: '10.0.0.31:8085'});
 
@@ -78,6 +75,7 @@ const rosMessageHandler = (msg) => {
 const pathMsgHandler = (msg) => {
   console.log("Received path from navigation.");
   //console.log(msg.poses[0].pose.position);
+  navPath = [ ];
   const poses = msg.poses;
   if (msg.poses) {
     msg.poses.map((pose) => {
@@ -94,13 +92,14 @@ const receiveAppRequest = async (req, res) => {
   try {
     console.log("Received command from app backend:");
     console.log(req.body);
+    res.set('Content-Type', 'application/json');
     const response = {
-      waypoints: navPath,
+      locationPoints: navPath,
     };
     let publisher = rosPublisher;
     // publish 2D pose msg to ROS
     if (publisher !== undefined) {
-      console.log(`Publishing ${x}`);
+      console.log(`Publishing ${publisher}`);
       publisher.publish({
         x: parseFloat(req.body.dropoffLocation.latitude),
         y: parseFloat(req.body.dropoffLocation.longitude),
@@ -111,9 +110,10 @@ const receiveAppRequest = async (req, res) => {
     currentStatus.spotStatus = req.body.tripStatus;
     activeTrip = true;
     res.status(200).send(JSON.stringify(response));
-  } catch (e) {
-    console.log(e.toString);
-    res.status(500).send("Exception: " + e.toString);
+  } 
+  catch (e) {
+    console.log(e.toString());
+    res.status(500).send("Exception: " + e.toString());
   }
 };
 
@@ -222,7 +222,7 @@ const main = (rosNode) => {
   preTrip = setInterval(sendRobotStatus, 1000);
   //postTrip = setInterval(sendRobotStatus, 10000);
   // poll to get a trip if it
-  intervalId = setInterval(getTripFromApp, 1000);
+  //intervalId = setInterval(getTripFromApp, 1000);
 };
 
 rosnodejs.initNode("/smads_app_client", { onTheFly: false }).then(main);
