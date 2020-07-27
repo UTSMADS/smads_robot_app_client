@@ -53,6 +53,15 @@ const sendRobotStatus = async () => {
     console.log(currentStatus);
     console.log("Status sent");
   } catch (e) {
+    if (e.response.status === 503) {
+      let publisher = rosPublisher;
+      if (publisher !== undefined) {
+        publisher.publish({
+          x: currentStatus.longitude,
+          y: currentStatus.longitude,
+        });
+      }
+    }
     console.error(`Error sending server update ${e}`);
   }
 };
@@ -75,7 +84,7 @@ const rosMessageHandler = (msg) => {
 const pathMsgHandler = (msg) => {
   console.log("Received path from navigation.");
   //console.log(msg.poses[0].pose.position);
-  navPath = [ ];
+  navPath = [];
   const poses = msg.poses;
   if (msg.poses) {
     msg.poses.map((pose) => {
@@ -92,7 +101,7 @@ const receiveAppRequest = async (req, res) => {
   try {
     console.log("Received command from app backend:");
     console.log(req.body);
-    res.set('Content-Type', 'application/json');
+    res.set("Content-Type", "application/json");
     const response = {
       locationPoints: navPath,
     };
@@ -107,11 +116,10 @@ const receiveAppRequest = async (req, res) => {
       });
     }
     // update status of spot when a trip is received
-    currentStatus.spotStatus = req.body.tripStatus;
+    currentStatus.spotStatus = req.body.assignedSpot.status;
     activeTrip = true;
     res.status(200).send(JSON.stringify(response));
-  } 
-  catch (e) {
+  } catch (e) {
     console.log(e.toString());
     res.status(500).send("Exception: " + e.toString());
   }
@@ -120,7 +128,7 @@ const receiveAppRequest = async (req, res) => {
 const cancelTrip = async (req, res) => {
   try {
     console.log("Cancelling trip.");
-    
+
     let publisher = rosPublisher;
     if (publisher !== undefined) {
       publisher.publish({
@@ -128,11 +136,11 @@ const cancelTrip = async (req, res) => {
         y: currentStatus.longitude,
       });
     } else {
-      res.status(200).send(JSON.stringify({cancelled: false}));
+      res.status(200).send(JSON.stringify({ cancelled: false }));
     }
     currentStatus.spotStatus = "available";
     activeTrip = false;
-    res.status(200).send(JSON.stringify({cancelled: true}));
+    res.status(200).send(JSON.stringify({ cancelled: true }));
   } catch (e) {
     console.log(e);
     res.status(500).send(`Exception: ${e}`);
