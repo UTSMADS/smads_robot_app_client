@@ -1,5 +1,6 @@
 const http = require("http");
 const https = require("https");
+const request = require("request");
 const express = require("express");
 const compression = require("compression");
 const bodyParser = require("body-parser");
@@ -16,10 +17,12 @@ let token = "";
 let jackalHardwareId = "";
 let loggedIn = false;
 let intervalId = 0;
-let activeTrip = false;
+let activeTrip = true;
+let curTripId = 1590;
 let preTrip = 0;
 let postTrip = 0;
-let last_nav_status = 1;
+let lastNavStatus = 3;
+
 
 // maintain global current status
 let currentStatus = {
@@ -34,8 +37,8 @@ let navPath = [];
 
 // const instance= axios.create({baseURL: 'http://ut-smads.herokuapp.com'});
 const instance = axios.create({
-  baseURL: "http://kif.csres.utexas.edu:8095",  
-  //baseURL: "http://hypnotoad.csres.utexas.edu:8085",
+  baseURL: "http://hypnotoad.csres.utexas.edu:8085",
+  //baseURL: "https://hypnotoad.csres.utexas.edu:8443",
 });
 // const instance= axios.create({baseURL: '10.0.0.31:8085'});
 
@@ -100,11 +103,11 @@ const pathMsgHandler = (msg) => {
 };
 
 const navStatusMsgHandler = (msg) => {
-  if (msg.goal_id == msg.SUCCEEDED && lastNavMsg.goal_id != msg.goal_id) {
+  if (msg.status == 3 && lastNavStatus != msg.status) {
     currentStatus.spotStatus = "dropoff";
     console.log("Changing robot status to dropoff");
   }
-  lastNavMsg = msg;
+  lastNavStatus = msg.status;
 };
 
 
@@ -128,6 +131,7 @@ const receiveAppRequest = async (req, res) => {
     }
     // update status of spot when a trip is received
     currentStatus.spotStatus = req.body.assignedSpot.status;
+    curTripId = req.body.assignedSpot.id;
     activeTrip = true;
     res.status(200).send(JSON.stringify(response));
   } catch (e) {
@@ -264,11 +268,30 @@ robotAppClient.use((req, res, next) => {
   next();
 });
 
+process.on('SIGINT', shutdown);
+
 robotAppClient.use(bodyParser.json({ limit: "10mb" }));
 robotAppClient.use(compression());
 
 robotAppClient.post("/newTrip", receiveAppRequest);
 robotAppClient.put("/cancelledTrip", cancelTrip);
+
+
+// Do graceful shutdown
+function shutdown() {  
+  console.log('graceful shutdown express');
+
+  // /requests/trip_ID/complete
+  if ( activeTrip ) {
+    console.log('shutting down during trip. Sending complete trip request to backend');
+    console.log('http://hypnotoad.csres.utexas.edu:8085/requests/'+curTripId+'/complete'); 
+    request.put('http://hypnotoad.csres.utexas.edu:8085/requests/'+curTripId+'/complete');
+    currentStatus.spotStatus = "available";
+    activeTrip = false;
+  }
+  process.exit()
+}
+
 
 robotAppClient.listen(9143, () =>
   console.log("SMADS App client listening on port 9143")
