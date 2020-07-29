@@ -19,6 +19,7 @@ let intervalId = 0;
 let activeTrip = false;
 let preTrip = 0;
 let postTrip = 0;
+let last_nav_status = 1;
 
 // maintain global current status
 let currentStatus = {
@@ -33,7 +34,8 @@ let navPath = [];
 
 // const instance= axios.create({baseURL: 'http://ut-smads.herokuapp.com'});
 const instance = axios.create({
-  baseURL: "http://hypnotoad.csres.utexas.edu:8085",
+  baseURL: "http://kif.csres.utexas.edu:8095",  
+  //baseURL: "http://hypnotoad.csres.utexas.edu:8085",
 });
 // const instance= axios.create({baseURL: '10.0.0.31:8085'});
 
@@ -97,6 +99,15 @@ const pathMsgHandler = (msg) => {
   console.log(navPath);
 };
 
+const navStatusMsgHandler = (msg) => {
+  if (msg.goal_id == msg.SUCCEEDED && lastNavMsg.goal_id != msg.goal_id) {
+    currentStatus.spotStatus = "dropoff";
+    console.log("Changing robot status to dropoff");
+  }
+  lastNavMsg = msg;
+};
+
+
 const receiveAppRequest = async (req, res) => {
   try {
     console.log("Received command from app backend:");
@@ -128,7 +139,7 @@ const receiveAppRequest = async (req, res) => {
 const cancelTrip = async (req, res) => {
   try {
     console.log("Cancelling trip.");
-
+    res.set("Content-Type", "application/json");
     let publisher = rosPublisher;
     if (publisher !== undefined) {
       publisher.publish({
@@ -136,11 +147,11 @@ const cancelTrip = async (req, res) => {
         y: currentStatus.longitude,
       });
     } else {
-      res.status(200).send(JSON.stringify({ cancelled: false }));
+      res.status(200).send(JSON.stringify({ success: false }));
     }
     currentStatus.spotStatus = "available";
     activeTrip = false;
-    res.status(200).send(JSON.stringify({ cancelled: true }));
+    res.status(200).send(JSON.stringify({ success: true }));
   } catch (e) {
     console.log(e);
     res.status(500).send(`Exception: ${e}`);
@@ -223,6 +234,13 @@ const main = (rosNode) => {
     pathMsgHandler,
     { queueSize: 1, throttleMs: 1000 }
   );
+  const navStatusSubscriber = rosNode.subscribe(
+    "/smads/navigation/out/status",
+    "actionlib_msgs/GoalStatus",
+    navStatusMsgHandler,
+    { queueSize: 1, throttleMs: 1000 }
+  );
+
   if (!loggedIn) {
     robotLogin();
   }
@@ -250,7 +268,7 @@ robotAppClient.use(bodyParser.json({ limit: "10mb" }));
 robotAppClient.use(compression());
 
 robotAppClient.post("/newTrip", receiveAppRequest);
-robotAppClient.post("/cancelledTrip", cancelTrip);
+robotAppClient.put("/cancelledTrip", cancelTrip);
 
 robotAppClient.listen(9143, () =>
   console.log("SMADS App client listening on port 9143")
