@@ -22,7 +22,7 @@ let curTripId = 1590;
 let preTrip = 0;
 let postTrip = 0;
 let lastNavStatus = 3;
-
+let tripTypeHome = false;
 
 // maintain global current status
 let currentStatus = {
@@ -104,8 +104,13 @@ const pathMsgHandler = (msg) => {
 
 const navStatusMsgHandler = (msg) => {
   if (msg.status == 3 && lastNavStatus != msg.status) {
-    currentStatus.spotStatus = "dropoff";
-    console.log("Changing robot status to dropoff");
+    if (tripTypeHome) {
+      currentStatus.spotStatus = "atHome";
+      console.log("Changing robot status to at home");
+    } else {
+      currentStatus.spotStatus = "dropoff";
+      console.log("Changing robot status to dropoff");
+    }
   }
   lastNavStatus = msg.status;
 };
@@ -133,6 +138,37 @@ const receiveAppRequest = async (req, res) => {
     currentStatus.spotStatus = req.body.assignedSpot.status;
     curTripId = req.body.assignedSpot.id;
     activeTrip = true;
+    tripTypeHome = req.body.returningHome;
+    res.status(200).send(JSON.stringify(response));
+  } catch (e) {
+    console.log(e.toString());
+    res.status(500).send("Exception: " + e.toString());
+  }
+};
+
+const receiveHomeRequest = async (req, res) => {
+  try {
+    console.log("Received command from app backend:");
+    console.log(req.body);
+    res.set("Content-Type", "application/json");
+    const response = {
+      success : true,
+    };
+    let publisher = rosPublisher;
+    // publish 2D pose msg to ROS
+    if (publisher !== undefined) {
+      console.log(`Publishing ${publisher}`);
+      publisher.publish({
+        x: parseFloat(req.body.dropoffLocation.latitude),
+        y: parseFloat(req.body.dropoffLocation.longitude),
+        theta: 0.0,
+      });
+    }
+    // update status of spot when a trip is received
+    currentStatus.spotStatus = req.body.assignedSpot.status;
+    curTripId = req.body.assignedSpot.id;
+    activeTrip = true;
+    tripTypeHome = req.body.returningHome;
     res.status(200).send(JSON.stringify(response));
   } catch (e) {
     console.log(e.toString());
@@ -155,6 +191,18 @@ const cancelTrip = async (req, res) => {
     }
     currentStatus.spotStatus = "available";
     activeTrip = false;
+    res.status(200).send(JSON.stringify({ success: true }));
+  } catch (e) {
+    console.log(e);
+    res.status(500).send(`Exception: ${e}`);
+  }
+};
+
+const setSpotStatus = async (req, res) => {
+  try {
+    console.log("Changing robot status.");
+    res.set("Content-Type", "application/json");
+    currentStatus.spotStatus = req.body.status;
     res.status(200).send(JSON.stringify({ success: true }));
   } catch (e) {
     console.log(e);
@@ -274,10 +322,13 @@ robotAppClient.use(bodyParser.json({ limit: "10mb" }));
 robotAppClient.use(compression());
 
 robotAppClient.post("/newTrip", receiveAppRequest);
+robotAppClient.post("/sendSpotHome", receiveHomeRequest);
 robotAppClient.put("/cancelledTrip", cancelTrip);
+robotAppClient.put("/spotStatus", setSpotStatus);
 
 
-// Do graceful shutdown
+// On shutdown, try to close any open trips
+// Note this is TODO and is NOT working
 function shutdown() {  
   console.log('graceful shutdown express');
 
