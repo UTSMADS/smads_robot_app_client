@@ -28,17 +28,19 @@ let tripTypeHome = false;
 let currentStatus = {
   latitude: 0.0,
   longitude: 0.0,
+  heading: 1.02,
   spotStatus: "available",
   chargeLevel: 0,
 };
 
 // maintain current navigation path
 let navPath = [];
+let pathProcessed = false;
 
 // const instance= axios.create({baseURL: 'http://ut-smads.herokuapp.com'});
 const instance = axios.create({
-  baseURL: "http://hypnotoad.csres.utexas.edu:8085",
-  //baseURL: "https://hypnotoad.csres.utexas.edu:8443",
+  //baseURL: "http://hypnotoad.csres.utexas.edu:8085",
+  baseURL: "https://hypnotoad.csres.utexas.edu:8443",
 });
 // const instance= axios.create({baseURL: '10.0.0.31:8085'});
 
@@ -55,7 +57,7 @@ const sendRobotStatus = async () => {
       currentStatus,
       config
     );
-    console.log(currentStatus);
+    //console.log(currentStatus);
     console.log("Status sent");
   } catch (e) {
     if (e.response.status === 503) {
@@ -99,6 +101,7 @@ const pathMsgHandler = (msg) => {
       });
     });
   }
+  pathProcessed = true;
   console.log(navPath);
 };
 
@@ -115,15 +118,13 @@ const navStatusMsgHandler = (msg) => {
   lastNavStatus = msg.status;
 };
 
+const sleep = (delay) => new Promise((resolve) => setTimeout(resolve, delay));
 
 const receiveAppRequest = async (req, res) => {
   try {
     console.log("Received command from app backend:");
     console.log(req.body);
     res.set("Content-Type", "application/json");
-    const response = {
-      locationPoints: navPath,
-    };
     let publisher = rosPublisher;
     // publish 2D pose msg to ROS
     if (publisher !== undefined) {
@@ -137,8 +138,16 @@ const receiveAppRequest = async (req, res) => {
     // update status of spot when a trip is received
     currentStatus.spotStatus = req.body.assignedSpot.status;
     curTripId = req.body.assignedSpot.id;
+    
+    // TODO better method needed to ensure navPath has been set
+    await sleep(2000);
+    pathProcessed = false;
     activeTrip = true;
     tripTypeHome = req.body.returningHome;
+    console.log(navPath);
+    const response = {
+      locationPoints: navPath,
+    };
     res.status(200).send(JSON.stringify(response));
   } catch (e) {
     console.log(e.toString());
@@ -177,6 +186,8 @@ const receiveHomeRequest = async (req, res) => {
 };
 
 const cancelTrip = async (req, res) => {
+  console.log(req);
+  console.log(res);
   try {
     console.log("Cancelling trip.");
     res.set("Content-Type", "application/json");
@@ -323,6 +334,7 @@ robotAppClient.use(compression());
 
 robotAppClient.post("/newTrip", receiveAppRequest);
 robotAppClient.post("/sendSpotHome", receiveHomeRequest);
+
 robotAppClient.put("/cancelledTrip", cancelTrip);
 robotAppClient.put("/spotStatus", setSpotStatus);
 
