@@ -22,7 +22,8 @@ let curTripId = 1590;
 let preTrip = 0;
 let postTrip = 0;
 let lastNavStatus = 3;
-let tripTypeHome = false;
+let tripTypeHome = false; 
+let startTime = new Date();
 
 // maintain global current status
 let currentStatus = {
@@ -31,6 +32,10 @@ let currentStatus = {
   heading: 1.02,
   spotStatus: "available",
   chargeLevel: 0,
+  time : { 
+    seconds: 0, 
+    miliseconds: 0
+  }
 };
 
 // maintain current navigation path
@@ -57,7 +62,7 @@ const sendRobotStatus = async () => {
       currentStatus,
       config
     );
-    //console.log(currentStatus);
+    console.log(currentStatus);
     console.log("Status sent");
   } catch (e) {
     if (e.response.status === 503) {
@@ -80,8 +85,14 @@ const rosMessageHandler = (msg) => {
     jackalHardwareId = msg.hardware_id;
   }
   if (msg.point) {
+    var timeDiff = new Date() - startTime;
     currentStatus.latitude = msg.point.x;
     currentStatus.longitude = msg.point.y;
+    currentStatus.heading = msg.point.z;
+    currentStatus.time.seconds = msg.header.stamp.secs;
+    //TODO nsecs! not milisecs
+    console.log(msg);
+    currentStatus.time.miliseconds = msg.header.stamp.nsecs;
   }
   if (msg.measured_battery) {
     currentStatus.chargeLevel = Math.floor(msg.measured_battery);
