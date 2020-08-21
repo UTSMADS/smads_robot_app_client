@@ -37,8 +37,8 @@ let navPath = [];
 
 // const instance= axios.create({baseURL: 'http://ut-smads.herokuapp.com'});
 const instance = axios.create({
-  baseURL: "http://hypnotoad.csres.utexas.edu:8085",
-  //baseURL: "https://hypnotoad.csres.utexas.edu:8443",
+  //baseURL: "http://hypnotoad.csres.utexas.edu:8085",
+  baseURL: "https://hypnotoad.csres.utexas.edu:8443",
 });
 // const instance= axios.create({baseURL: '10.0.0.31:8085'});
 
@@ -316,6 +316,46 @@ robotAppClient.use((req, res, next) => {
   next();
 });
 
+/*******
+Testing API Calls
+********/
+
+const receivePathTestRequest = async (req, res) => {
+  try {
+    res.set("Content-Type", "application/json");
+    path = [ ]
+    path = path.concat({latitude: 30.28784230, longitude: -97.73702432,});
+    path = path.concat({latitude: 30.28609770, longitude: -97.73666482,});
+    path = path.concat({latitude: 30.28613810, longitude: -97.73597423,});
+    console.log(path);
+    const response = {
+      locationPoints: path,
+    };
+    console.log(response);
+    res.status(200).send(JSON.stringify(response));
+  }  
+  catch (e) {
+    console.error(e.message);
+  }
+
+}
+
+const receivePingTestRequest = async (req, res) => {
+try {
+    res.set("Content-Type", "application/json");
+    const response = {
+      success: true,
+    };
+    console.log(response);
+    res.status(200).send(JSON.stringify(response));
+  }  
+  catch (e) {
+    console.error(e.message);
+  }
+}
+
+
+
 process.on('SIGINT', shutdown);
 
 robotAppClient.use(bodyParser.json({ limit: "10mb" }));
@@ -323,6 +363,9 @@ robotAppClient.use(compression());
 
 robotAppClient.post("/newTrip", receiveAppRequest);
 robotAppClient.post("/sendSpotHome", receiveHomeRequest);
+robotAppClient.post("/test/receivePath", receivePathTestRequest);
+robotAppClient.post("/test/pingMe", receivePingTestRequest);
+
 robotAppClient.put("/cancelledTrip", cancelTrip);
 robotAppClient.put("/spotStatus", setSpotStatus);
 
@@ -335,8 +378,8 @@ function shutdown() {
   // /requests/trip_ID/complete
   if ( activeTrip ) {
     console.log('shutting down during trip. Sending complete trip request to backend');
-    console.log('http://hypnotoad.csres.utexas.edu:8085/requests/'+curTripId+'/complete'); 
-    request.put('http://hypnotoad.csres.utexas.edu:8085/requests/'+curTripId+'/complete');
+    console.log('https://hypnotoad.csres.utexas.edu:8443/requests/'+curTripId+'/complete'); 
+    request.put('https://hypnotoad.csres.utexas.edu:8443/requests/'+curTripId+'/complete');
     currentStatus.spotStatus = "available";
     activeTrip = false;
   }
