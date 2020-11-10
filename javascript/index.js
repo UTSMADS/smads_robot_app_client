@@ -49,6 +49,10 @@ const instance = axios.create({
 });
 // const instance= axios.create({baseURL: '10.0.0.31:8085'});
 
+// load robot credentials
+var robot_credentials = require('./credentials/robot.json');
+
+
 const sendRobotStatus = async () => {
   const config = {
     headers: {
@@ -56,13 +60,16 @@ const sendRobotStatus = async () => {
       Authorization: `Bearer ${token}`,
     },
   };
+  if (!loggedIn) {
+    robotLogin();
+  }
   try {
     const res = await instance.put(
       `/spots/0/statusUpdate`,
       currentStatus,
       config
     );
-    console.log(currentStatus);
+    //console.log(currentStatus);
     console.log("Status sent");
   } catch (e) {
     if (e.response.status === 503) {
@@ -91,7 +98,7 @@ const rosMessageHandler = (msg) => {
     currentStatus.heading = msg.point.z;
     currentStatus.time.seconds = msg.header.stamp.secs;
     //TODO nsecs! not milisecs
-    console.log(msg);
+    //console.log(msg);
     currentStatus.time.miliseconds = msg.header.stamp.nsecs;
   }
   if (msg.measured_battery) {
@@ -235,9 +242,9 @@ const setSpotStatus = async (req, res) => {
 const robotLogin = async () => {
   // login credentials
   const login = {
-    username: "0",
-    password: "smads_jackal",
-    name: "jackal",
+    username: robot_credentials.login.id,
+    password: robot_credentials.login.password,
+    name: robot_credentials.name,
   };
 
   try {
@@ -379,6 +386,7 @@ try {
 
 
 process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);
 
 robotAppClient.use(bodyParser.json({ limit: "10mb" }));
 robotAppClient.use(compression());
