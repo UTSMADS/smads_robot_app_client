@@ -67,7 +67,8 @@ const instance = axios.create({
 
 // load robot credentials
 var robot_credentials = require('./credentials/robot.json');
-
+const robot_status_topic = robot_credentials.topics.status.name;
+const robot_status_message = robot_credentials.topics.status.message;
 
 const sendRobotStatus = async () => {
   const config = {
@@ -322,8 +323,8 @@ const main = (rosNode) => {
   console.log(`Publisher: ${rosPublisher}`);
   // Subscribe to jackal status topic
   const statusSubscriber = rosNode.subscribe(
-    "/status",
-    "jackal_msgs/Status",
+     robot_status_topic,
+     robot_status_message,
     rosMessageHandler,
     { queueSize: 1, throttleMs: 1000 }
   );
