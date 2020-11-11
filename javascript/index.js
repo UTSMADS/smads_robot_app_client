@@ -32,9 +32,9 @@ let currentStatus = {
   heading: 1.02,
   spotStatus: "available",
   chargeLevel: 0,
-  time : { 
+  timestamp : { 
     seconds: 0, 
-    miliseconds: 0
+    milliseconds: 0
   }
 };
 
@@ -65,11 +65,11 @@ const sendRobotStatus = async () => {
   }
   try {
     const res = await instance.put(
-      `/spots/0/statusUpdate`,
+      `/spots/`+robot_credentials.login.id+`/statusUpdate`,
       currentStatus,
       config
     );
-    //console.log(currentStatus);
+    console.log(currentStatus);
     console.log("Status sent");
   } catch (e) {
     if (e.response.status === 503) {
@@ -96,10 +96,10 @@ const rosMessageHandler = (msg) => {
     currentStatus.latitude = msg.point.x;
     currentStatus.longitude = msg.point.y;
     currentStatus.heading = msg.point.z;
-    currentStatus.time.seconds = msg.header.stamp.secs;
+    currentStatus.timestamp.seconds = msg.header.stamp.secs;
     //TODO nsecs! not milisecs
     //console.log(msg);
-    currentStatus.time.miliseconds = msg.header.stamp.nsecs;
+    currentStatus.timestamp.milliseconds = msg.header.stamp.nsecs;
   }
   if (msg.measured_battery) {
     currentStatus.chargeLevel = Math.floor(msg.measured_battery);
@@ -401,19 +401,37 @@ robotAppClient.put("/spotStatus", setSpotStatus);
 
 
 // On shutdown, try to close any open trips
-// Note this is TODO and is NOT working
 function shutdown() {  
   console.log('graceful shutdown express');
 
+  const exitPayload = {
+	"status": "outofservice"
+  };
+  const config = {
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+  };
+
+  currentStatus.spotStatus = "outofservice";
+  try {
+    const res = instance.put(
+      `/spots/`+robot_credentials.login.id+`/statusUpdate`,
+      currentStatus,
+      config
+    );
+  } catch(e) { }
   // /requests/trip_ID/complete
-  if ( activeTrip ) {
+  /*if ( activeTrip ) {
     console.log('shutting down during trip. Sending complete trip request to backend');
     console.log('https://hypnotoad.csres.utexas.edu:8443/requests/'+curTripId+'/complete'); 
     request.put('https://hypnotoad.csres.utexas.edu:8443/requests/'+curTripId+'/complete');
     currentStatus.spotStatus = "available";
     activeTrip = false;
-  }
-  process.exit()
+  }*/
+  console.log("Exiting..");
+  process.exit();
 }
 
 
