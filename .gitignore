@@ -5,3 +5,4 @@ app_backend.rest
 ts/refactor.ts
 cancel.rest
 javascript/credentials/robot.json
+install_nvm.sh
