@@ -5,6 +5,22 @@ const express = require("express");
 const compression = require("compression");
 const bodyParser = require("body-parser");
 const axios = require("axios");
+const yargs = require('yargs');
+
+// initialize CLI flags
+const argv = yargs
+    .command('verbose', 'Increasing logging output', {
+        verbosity: {
+            description: 'the year to check for',
+            alias: 'v',
+            type: 'string',
+        }
+    })
+    .help()
+    .alias('help', 'h')
+    .argv;
+
+const verbose = argv._.includes('verbose')
 
 // initialize rosnodejs
 const rosnodejs = require("rosnodejs");
@@ -61,6 +77,7 @@ const sendRobotStatus = async () => {
     },
   };
   if (!loggedIn) {
+    console.log("Robot not logged in. Attempted to log in.");
     robotLogin();
   }
   try {
@@ -69,7 +86,9 @@ const sendRobotStatus = async () => {
       currentStatus,
       config
     );
-    console.log(currentStatus);
+    if (verbose){
+	    console.log(currentStatus);
+    }
     console.log("Status sent");
   } catch (e) {
     if (e.response.status === 503) {
@@ -86,7 +105,9 @@ const sendRobotStatus = async () => {
 };
 
 const rosMessageHandler = (msg) => {
-  console.log("Recieved ROS message");
+  if (verbose){
+    console.log("Recieved ROS message");
+  }
   // update current status attributes if they exist
   if (msg.hardware_id !== undefined) {
     jackalHardwareId = msg.hardware_id;
@@ -97,8 +118,6 @@ const rosMessageHandler = (msg) => {
     currentStatus.longitude = msg.point.y;
     currentStatus.heading = msg.point.z;
     currentStatus.timestamp.seconds = msg.header.stamp.secs;
-    //TODO nsecs! not milisecs
-    //console.log(msg);
     currentStatus.timestamp.milliseconds = msg.header.stamp.nsecs;
   }
   if (msg.measured_battery) {
@@ -108,7 +127,6 @@ const rosMessageHandler = (msg) => {
 
 const pathMsgHandler = (msg) => {
   console.log("Received path from navigation.");
-  //console.log(msg.poses[0].pose.position);
   navPath = [];
   const poses = msg.poses;
   if (msg.poses) {
