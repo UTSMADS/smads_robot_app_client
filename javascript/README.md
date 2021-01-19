@@ -21,3 +21,9 @@ runs the robot client using nodemon to watch for changes and reload. Note that `
 
 #### `yarn start`
 runs the robot client. Note that `roscore` should be up and running in order for the robot client to work.
+
+### Deployment
+Before being deployed, the robot will need to have its own account on the backend with a unique `id`, `password`, and `name`. These data are loaded as credentials and are necessary for backend communication.
+
+An example file exists in `credentials/robot.example.json`. Copy this file to one called `credentials/robot.json` and modify it with its unique entries. 
+Existance of `robot.json` is *required* and the robot server will not run otherwise.

@@ -5,6 +5,22 @@ const express = require("express");
 const compression = require("compression");
 const bodyParser = require("body-parser");
 const axios = require("axios");
+const yargs = require('yargs');
+
+// initialize CLI flags
+const argv = yargs
+    .command('verbose', 'Increasing logging output', {
+        verbosity: {
+            description: 'the year to check for',
+            alias: 'v',
+            type: 'string',
+        }
+    })
+    .help()
+    .alias('help', 'h')
+    .argv;
+
+const verbose = argv._.includes('verbose')
 
 // initialize rosnodejs
 const rosnodejs = require("rosnodejs");
@@ -32,9 +48,9 @@ let currentStatus = {
   heading: 1.02,
   spotStatus: "available",
   chargeLevel: 0,
-  time : { 
+  timestamp : { 
     seconds: 0, 
-    miliseconds: 0
+    milliseconds: 0
   }
 };
 
@@ -49,6 +65,11 @@ const instance = axios.create({
 });
 // const instance= axios.create({baseURL: '10.0.0.31:8085'});
 
+// load robot credentials
+var robot_credentials = require('./credentials/robot.json');
+const robot_status_topic = robot_credentials.topics.status.name;
+const robot_status_message = robot_credentials.topics.status.message;
+
 const sendRobotStatus = async () => {
   const config = {
     headers: {
@@ -56,13 +77,19 @@ const sendRobotStatus = async () => {
       Authorization: `Bearer ${token}`,
     },
   };
+  if (!loggedIn) {
+    console.log("Robot not logged in. Attempted to log in.");
+    robotLogin();
+  }
   try {
     const res = await instance.put(
-      `/spots/0/statusUpdate`,
+      `/spots/`+robot_credentials.login.id+`/statusUpdate`,
       currentStatus,
       config
     );
-    console.log(currentStatus);
+    if (verbose){
+	    console.log(currentStatus);
+    }
     console.log("Status sent");
   } catch (e) {
     if (e.response.status === 503) {
@@ -79,7 +106,9 @@ const sendRobotStatus = async () => {
 };
 
 const rosMessageHandler = (msg) => {
-  console.log("Recieved ROS message");
+  if (verbose){
+    console.log("Recieved ROS message");
+  }
   // update current status attributes if they exist
   if (msg.hardware_id !== undefined) {
     jackalHardwareId = msg.hardware_id;
@@ -89,10 +118,8 @@ const rosMessageHandler = (msg) => {
     currentStatus.latitude = msg.point.x;
     currentStatus.longitude = msg.point.y;
     currentStatus.heading = msg.point.z;
-    currentStatus.time.seconds = msg.header.stamp.secs;
-    //TODO nsecs! not milisecs
-    console.log(msg);
-    currentStatus.time.miliseconds = msg.header.stamp.nsecs;
+    currentStatus.timestamp.seconds = msg.header.stamp.secs;
+    currentStatus.timestamp.milliseconds = msg.header.stamp.nsecs;
   }
   if (msg.measured_battery) {
     currentStatus.chargeLevel = Math.floor(msg.measured_battery);
@@ -101,7 +128,6 @@ const rosMessageHandler = (msg) => {
 
 const pathMsgHandler = (msg) => {
   console.log("Received path from navigation.");
-  //console.log(msg.poses[0].pose.position);
   navPath = [];
   const poses = msg.poses;
   if (msg.poses) {
@@ -235,9 +261,9 @@ const setSpotStatus = async (req, res) => {
 const robotLogin = async () => {
   // login credentials
   const login = {
-    username: "0",
-    password: "smads_jackal",
-    name: "jackal",
+    username: robot_credentials.login.id,
+    password: robot_credentials.login.password,
+    name: robot_credentials.name,
   };
 
   try {
@@ -297,8 +323,8 @@ const main = (rosNode) => {
   console.log(`Publisher: ${rosPublisher}`);
   // Subscribe to jackal status topic
   const statusSubscriber = rosNode.subscribe(
-    "/status",
-    "jackal_msgs/Status",
+     robot_status_topic,
+     robot_status_message,
     rosMessageHandler,
     { queueSize: 1, throttleMs: 1000 }
   );
@@ -379,6 +405,7 @@ try {
 
 
 process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);
 
 robotAppClient.use(bodyParser.json({ limit: "10mb" }));
 robotAppClient.use(compression());
@@ -393,19 +420,37 @@ robotAppClient.put("/spotStatus", setSpotStatus);
 
 
 // On shutdown, try to close any open trips
-// Note this is TODO and is NOT working
 function shutdown() {  
   console.log('graceful shutdown express');
 
+  const exitPayload = {
+	"status": "outofservice"
+  };
+  const config = {
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+  };
+
+  currentStatus.spotStatus = "outofservice";
+  try {
+    const res = instance.put(
+      `/spots/`+robot_credentials.login.id+`/statusUpdate`,
+      currentStatus,
+      config
+    );
+  } catch(e) { }
   // /requests/trip_ID/complete
-  if ( activeTrip ) {
+  /*if ( activeTrip ) {
     console.log('shutting down during trip. Sending complete trip request to backend');
     console.log('https://hypnotoad.csres.utexas.edu:8443/requests/'+curTripId+'/complete'); 
     request.put('https://hypnotoad.csres.utexas.edu:8443/requests/'+curTripId+'/complete');
     currentStatus.spotStatus = "available";
     activeTrip = false;
-  }
-  process.exit()
+  }*/
+  console.log("Exiting..");
+  process.exit();
 }
 
 
